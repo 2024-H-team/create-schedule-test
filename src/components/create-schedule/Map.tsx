@@ -19,7 +19,7 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
 
     const mapRef = useRef<google.maps.Map | null>(null);
     const autoCompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-    const markerRef = useRef<google.maps.Marker | null>(null);
+    const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
     const [selectedPlace, setSelectedPlace] = useState<google.maps.LatLng | null>(null);
 
     const center = useMemo(() => ({ lat: 34.6937, lng: 135.5023 }), []);
@@ -27,14 +27,31 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
     useEffect(() => {
         if (!selectedPlace || !mapRef.current) return;
 
-        const initializeMarker = () => {
-            if (markerRef.current) {
-                markerRef.current.setPosition(selectedPlace);
-            } else {
-                markerRef.current = new google.maps.Marker({
-                    map: mapRef.current,
-                    position: selectedPlace,
-                });
+        const initializeMarker = async () => {
+            try {
+                const { AdvancedMarkerElement } = (await google.maps.importLibrary(
+                    'marker',
+                )) as typeof google.maps.marker;
+
+                const markerContent = document.createElement('div');
+                markerContent.style.backgroundColor = 'red';
+                markerContent.style.width = '32px';
+                markerContent.style.height = '32px';
+                markerContent.style.borderRadius = '50%';
+
+                if (markerRef.current) {
+                    markerRef.current.position = selectedPlace;
+                    markerRef.current.content = markerContent;
+                } else {
+                    markerRef.current = new AdvancedMarkerElement({
+                        position: selectedPlace,
+                        map: mapRef.current,
+                        title: 'Selected Place',
+                        content: markerContent,
+                    });
+                }
+            } catch (error) {
+                console.error('Error initializing AdvancedMarkerElement: ', error);
             }
         };
 
@@ -100,30 +117,32 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
     if (!isLoaded) return <div>Loading...</div>;
 
     return (
-        <div className={Styles.mapContainer}>
-            <Autocomplete
-                onLoad={(autocomplete) => (autoCompleteRef.current = autocomplete)}
-                onPlaceChanged={handlePlaceSelect}
-                className={Styles.searchBox}
-            >
-                <input type="text" placeholder="Search for a place" />
-            </Autocomplete>
+        <>
+            <div className={Styles.mapContainer}>
+                <Autocomplete
+                    onLoad={(autocomplete) => (autoCompleteRef.current = autocomplete)}
+                    onPlaceChanged={handlePlaceSelect}
+                    className={Styles.searchBox}
+                >
+                    <input type="text" placeholder="Search for a place" />
+                </Autocomplete>
 
-            <GoogleMap
-                center={selectedPlace || center}
-                zoom={10}
-                mapContainerClassName={Styles.mapContainer}
-                mapContainerStyle={{ width: '100%', height: '100%' }}
-                onLoad={(map) => {
-                    mapRef.current = map;
-                    map.setOptions({ mapId: '26a4732fc7efb60' });
-                }}
-                onClick={(e) => {
-                    const latLng = e.latLng;
-                    if (latLng) fetchPlaceDetailsFromLatLng(latLng);
-                }}
-            />
-        </div>
+                <GoogleMap
+                    center={selectedPlace || center}
+                    zoom={10}
+                    mapContainerClassName={Styles.mapContainer}
+                    mapContainerStyle={{ width: '100%', height: '100%' }}
+                    onLoad={(map) => {
+                        mapRef.current = map;
+                        map.setOptions({ mapId: '26a4732fc7efb60' });
+                    }}
+                    onClick={(e) => {
+                        const latLng = e.latLng;
+                        if (latLng) fetchPlaceDetailsFromLatLng(latLng);
+                    }}
+                />
+            </div>
+        </>
     );
 };
 
