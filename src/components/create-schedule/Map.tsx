@@ -118,6 +118,16 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
 
     return (
         <>
+            <style>
+                {`
+                .gm-style-iw {
+                    display: none!important;
+                }
+                .gm-style-iw-tc {
+                    display: none!important;
+                }
+            `}
+            </style>
             <div className={Styles.mapContainer}>
                 <Autocomplete
                     onLoad={(autocomplete) => (autoCompleteRef.current = autocomplete)}
