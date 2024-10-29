@@ -3,10 +3,10 @@ import { PlaceDetails } from '@/types/PlaceDetails';
 
 interface SpotInfoProps {
     place: PlaceDetails | null;
+    onAddSpot: (spot: PlaceDetails) => void;
 }
 
-export default function SpotInfo({ place }: SpotInfoProps) {
-    // console.log(place);
+export default function SpotInfo({ place, onAddSpot }: SpotInfoProps) {
     return (
         <div className={Styles.infoContainer}>
             {place ? (
@@ -23,6 +23,7 @@ export default function SpotInfo({ place }: SpotInfoProps) {
                         </p>
                     )}
                     {place.rating && <p>評価 : {place.rating}★</p>}
+                    <button onClick={() => onAddSpot(place)}>この場所を選ぶ</button>
                 </>
             ) : (
                 <p>選択されていません。地図上で場所を選択してください。</p>
