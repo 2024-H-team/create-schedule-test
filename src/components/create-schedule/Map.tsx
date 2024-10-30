@@ -21,11 +21,12 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
     const autoCompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
     const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
     const [selectedPlaces, setSelectedPlaces] = useState<PlaceDetails[]>([]);
+    const [clickedLocation, setClickedLocation] = useState<google.maps.LatLng | null>(null);
 
     const center = useMemo(() => ({ lat: 34.6937, lng: 135.5023 }), []);
 
     useEffect(() => {
-        if (selectedPlaces.length === 0 || !mapRef.current) return;
+        if (!clickedLocation || !mapRef.current) return;
 
         const initializeMarker = async () => {
             try {
@@ -40,11 +41,11 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
                 markerContent.style.borderRadius = '50%';
 
                 if (markerRef.current) {
-                    markerRef.current.position = selectedPlaces[0].location;
+                    markerRef.current.position = clickedLocation;
                     markerRef.current.content = markerContent;
                 } else {
                     markerRef.current = new AdvancedMarkerElement({
-                        position: selectedPlaces[0].location,
+                        position: clickedLocation,
                         map: mapRef.current,
                         title: 'Selected Place',
                         content: markerContent,
@@ -56,14 +57,31 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
         };
 
         initializeMarker();
-    }, [selectedPlaces]);
+    }, [clickedLocation]);
 
     const fetchPlaceDetailsFromLatLng = (latLng: google.maps.LatLng) => {
+        setClickedLocation(latLng);
+
         const geocoder = new google.maps.Geocoder();
         geocoder.geocode({ location: latLng }, (results, status) => {
-            if (status === google.maps.GeocoderStatus.OK && results && results[0]) {
+            if (status === google.maps.GeocoderStatus.OK && results) {
                 console.log(results);
-                const placeIds = results.slice(0, 5).map((result) => result.place_id);
+
+                const filteredAndSortedResults = results
+                    .slice(0, 5)
+                    .filter(
+                        (result) =>
+                            !result.types.includes('route') &&
+                            !result.types.includes('plus_code') &&
+                            !result.types.includes('premise'),
+                    )
+                    .sort((a, b) => {
+                        const aTypePriority = a.types.includes('street_address') ? 1 : 0;
+                        const bTypePriority = b.types.includes('street_address') ? 1 : 0;
+                        return aTypePriority - bTypePriority;
+                    });
+
+                const placeIds = filteredAndSortedResults.map((result) => result.place_id);
                 const service = new google.maps.places.PlacesService(mapRef.current!);
 
                 const placeDetailsPromises = placeIds.map((placeId) => {
