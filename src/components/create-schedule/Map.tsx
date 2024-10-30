@@ -7,7 +7,7 @@ import { PlaceDetails } from '@/types/PlaceDetails';
 import { libraries } from '@/utils/googleMapConfig';
 
 interface MapWithSearchProps {
-    onPlaceSelect: (place: PlaceDetails | null) => void;
+    onPlaceSelect: (places: PlaceDetails[]) => void;
 }
 
 const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
@@ -20,12 +20,12 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
     const mapRef = useRef<google.maps.Map | null>(null);
     const autoCompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
     const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
-    const [selectedPlace, setSelectedPlace] = useState<google.maps.LatLng | null>(null);
+    const [selectedPlaces, setSelectedPlaces] = useState<PlaceDetails[]>([]);
 
     const center = useMemo(() => ({ lat: 34.6937, lng: 135.5023 }), []);
 
     useEffect(() => {
-        if (!selectedPlace || !mapRef.current) return;
+        if (selectedPlaces.length === 0 || !mapRef.current) return;
 
         const initializeMarker = async () => {
             try {
@@ -40,11 +40,11 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
                 markerContent.style.borderRadius = '50%';
 
                 if (markerRef.current) {
-                    markerRef.current.position = selectedPlace;
+                    markerRef.current.position = selectedPlaces[0].location;
                     markerRef.current.content = markerContent;
                 } else {
                     markerRef.current = new AdvancedMarkerElement({
-                        position: selectedPlace,
+                        position: selectedPlaces[0].location,
                         map: mapRef.current,
                         title: 'Selected Place',
                         content: markerContent,
@@ -56,30 +56,44 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
         };
 
         initializeMarker();
-    }, [selectedPlace]);
+    }, [selectedPlaces]);
 
     const fetchPlaceDetailsFromLatLng = (latLng: google.maps.LatLng) => {
         const geocoder = new google.maps.Geocoder();
         geocoder.geocode({ location: latLng }, (results, status) => {
             if (status === google.maps.GeocoderStatus.OK && results && results[0]) {
-                const placeId = results[0].place_id;
-                if (placeId) {
-                    const service = new google.maps.places.PlacesService(mapRef.current!);
-                    service.getDetails({ placeId }, (place, status) => {
-                        if (status === google.maps.places.PlacesServiceStatus.OK && place) {
-                            const placeDetails: PlaceDetails = {
-                                name: place.name || '',
-                                address: place.formatted_address || '',
-                                phoneNumber: place.formatted_phone_number || undefined,
-                                website: place.website || undefined,
-                                rating: place.rating || undefined,
-                                location: { lat: latLng.lat(), lng: latLng.lng() },
-                            };
-                            setSelectedPlace(latLng);
-                            onPlaceSelect(placeDetails);
-                        }
+                console.log(results);
+                const placeIds = results.slice(0, 5).map((result) => result.place_id);
+                const service = new google.maps.places.PlacesService(mapRef.current!);
+
+                const placeDetailsPromises = placeIds.map((placeId) => {
+                    return new Promise<PlaceDetails | null>((resolve) => {
+                        service.getDetails({ placeId }, (place, status) => {
+                            if (status === google.maps.places.PlacesServiceStatus.OK && place) {
+                                const placeDetails: PlaceDetails = {
+                                    name: place.name || '',
+                                    address: place.formatted_address || '',
+                                    phoneNumber: place.formatted_phone_number || undefined,
+                                    website: place.website || undefined,
+                                    rating: place.rating || undefined,
+                                    location: {
+                                        lat: place.geometry?.location?.lat() || 0,
+                                        lng: place.geometry?.location?.lng() || 0,
+                                    },
+                                };
+                                resolve(placeDetails);
+                            } else {
+                                resolve(null);
+                            }
+                        });
                     });
-                }
+                });
+
+                Promise.all(placeDetailsPromises).then((places) => {
+                    const validPlaces = places.filter((place) => place !== null) as PlaceDetails[];
+                    setSelectedPlaces(validPlaces);
+                    onPlaceSelect(validPlaces);
+                });
             } else {
                 console.error('Geocoding failed: ' + status);
             }
@@ -92,7 +106,6 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
 
             if (place && place.geometry && place.geometry.location) {
                 const location = place.geometry.location;
-                setSelectedPlace(location);
                 mapRef.current?.panTo({ lat: location.lat(), lng: location.lng() });
                 mapRef.current?.setZoom(15);
 
@@ -105,7 +118,8 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
                     location: { lat: location.lat(), lng: location.lng() },
                 };
 
-                onPlaceSelect(placeDetails);
+                setSelectedPlaces([placeDetails]);
+                onPlaceSelect([placeDetails]);
             }
         }
     };
@@ -138,7 +152,7 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
                 </Autocomplete>
 
                 <GoogleMap
-                    center={selectedPlace || center}
+                    center={selectedPlaces[0]?.location || center}
                     zoom={10}
                     mapContainerClassName={Styles.mapContainer}
                     mapContainerStyle={{ width: '100%', height: '100%' }}
