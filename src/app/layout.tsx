@@ -1,11 +1,13 @@
-// import 'normalize.css';
 import '@styles/GlobalStyles.scss';
 import { Roboto } from 'next/font/google';
+import { MapProvider } from '@/components/MapProvider';
+
 const roboto = Roboto({
     subsets: ['latin'],
     weight: ['100', '300', '400', '500', '700', '900'],
     display: 'swap',
 });
+
 export default function RootLayout({
     children,
 }: Readonly<{
@@ -13,7 +15,9 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en">
-            <body className={roboto.className}>{children}</body>
+            <body className={roboto.className}>
+                <MapProvider>{children}</MapProvider>
+            </body>
         </html>
     );
 }

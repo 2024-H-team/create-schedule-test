@@ -1,21 +1,17 @@
 'use client';
 
-import Styles from '@styles/componentStyles/mapStyles.module.scss';
+import Styles from '@styles/componentStyles/createScheduleMapStyles.module.scss';
 import { useMemo, useRef, useState, useEffect } from 'react';
-import { GoogleMap, useJsApiLoader, Autocomplete } from '@react-google-maps/api';
+import { GoogleMap, Autocomplete } from '@react-google-maps/api';
 import { PlaceDetails } from '@/types/PlaceDetails';
-import { getGoogleMapLibraries } from '@/utils/googleMapConfig';
+import { useMapContext } from '@/components/MapProvider';
 
 interface CreateScheduleMapProps {
     onPlaceSelect: (places: PlaceDetails[]) => void;
 }
 
 const CreateScheduleMap: React.FC<CreateScheduleMapProps> = ({ onPlaceSelect }) => {
-    const { isLoaded, loadError } = useJsApiLoader({
-        googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-        libraries: getGoogleMapLibraries(),
-        language: 'ja',
-    });
+    const { isLoaded, loadError } = useMapContext();
 
     const mapRef = useRef<google.maps.Map | null>(null);
     const autoCompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
