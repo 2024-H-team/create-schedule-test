@@ -1,59 +1,85 @@
-// ScheduleMap.tsx
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { GoogleMap, DirectionsRenderer } from '@react-google-maps/api';
+import { GoogleMap, Marker, InfoWindow, DirectionsRenderer } from '@react-google-maps/api';
 import { PlaceDetails } from '@/types/PlaceDetails';
 import Styles from '@styles/componentStyles/createScheduleMapStyles.module.scss';
 import { useMapContext } from '@/components/MapProvider';
 
 interface ScheduleMapProps {
-    travelMode: google.maps.TravelMode;
+    places: PlaceDetails[];
+    travelModes: google.maps.TravelMode[];
 }
 
-const ScheduleMap: React.FC<ScheduleMapProps> = ({ travelMode }) => {
+const ScheduleMap: React.FC<ScheduleMapProps> = ({ places, travelModes }) => {
     const { isLoaded, loadError } = useMapContext();
     const mapRef = useRef<google.maps.Map | null>(null);
-    const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
-    const [places, setPlaces] = useState<PlaceDetails[]>([]);
+    const [directionsSegments, setDirectionsSegments] = useState<google.maps.DirectionsResult[]>([]);
+    const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null);
 
     useEffect(() => {
-        const storedPlaces = sessionStorage.getItem('ScheduleSpot');
-        if (storedPlaces) {
-            const parsedPlaces: PlaceDetails[] = JSON.parse(storedPlaces);
-            setPlaces(parsedPlaces);
-            sessionStorage.removeItem('ScheduleSpot');
-        }
-    }, []);
+        if (!isLoaded || places.length < 2) return;
 
-    useEffect(() => {
-        if (places.length < 2 || !isLoaded) return;
+        const fetchDirections = async () => {
+            const directionsService = new google.maps.DirectionsService();
+            const results: google.maps.DirectionsResult[] = [];
 
-        const origin = places[0].location;
-        const destination = places[0].location;
-        const waypoints = places.slice(1).map((place) => ({
-            location: place.location,
-            stopover: true,
-        }));
+            for (let i = 0; i < places.length; i++) {
+                const origin = places[i].location;
+                const destination = i === places.length - 1 ? places[0].location : places[i + 1].location;
+                const travelMode = travelModes[i] || google.maps.TravelMode.WALKING;
 
-        const directionsService = new google.maps.DirectionsService();
-        directionsService.route(
-            {
-                origin,
-                destination,
-                waypoints,
-                travelMode, // Sử dụng travelMode được truyền từ Schedule
-                optimizeWaypoints: false,
-            },
-            (result, status) => {
-                if (status === google.maps.DirectionsStatus.OK && result) {
-                    setDirections(result);
-                } else {
-                    console.error('Directions request failed due to ' + status);
+                console.log(
+                    `Creating route from ${places[i].name} to ${
+                        i === places.length - 1 ? places[0].name : places[i + 1].name
+                    } with mode ${travelMode}`,
+                );
+
+                const result = await new Promise<google.maps.DirectionsResult | null>((resolve) => {
+                    directionsService.route(
+                        {
+                            origin,
+                            destination,
+                            travelMode,
+                        },
+                        (response, status) => {
+                            if (status === google.maps.DirectionsStatus.OK && response) {
+                                resolve(response);
+                            } else if (status === google.maps.DirectionsStatus.ZERO_RESULTS) {
+                                alert(
+                                    `No route found from ${places[i].name} to ${
+                                        places[i + 1]?.name || places[0].name
+                                    } with mode ${travelMode}`,
+                                );
+                                resolve(null);
+                            } else {
+                                console.error('Directions request failed due to ' + status);
+                                resolve(null);
+                            }
+                        },
+                    );
+                });
+
+                if (result) {
+                    results.push(result);
                 }
-            },
-        );
-    }, [places, isLoaded, travelMode]); // Theo dõi travelMode để cập nhật hành trình khi thay đổi
+            }
+
+            setDirectionsSegments(results);
+
+            if (mapRef.current && places.length > 0) {
+                const bounds = new google.maps.LatLngBounds();
+                places.forEach((place) => {
+                    if (place.location) {
+                        bounds.extend(place.location);
+                    }
+                });
+                mapRef.current.fitBounds(bounds);
+            }
+        };
+
+        fetchDirections();
+    }, [places, travelModes, isLoaded]);
 
     if (loadError) {
         return <div>Error loading maps</div>;
@@ -61,7 +87,7 @@ const ScheduleMap: React.FC<ScheduleMapProps> = ({ travelMode }) => {
 
     if (!isLoaded) return <div>Loading...</div>;
 
-    const center = places.length > 0 ? places[0].location : { lat: 34.6937, lng: 135.5023 };
+    const center = places[0]?.location || { lat: 34.6937, lng: 135.5023 };
 
     return (
         <div className={Styles.mapContainer}>
@@ -74,7 +100,28 @@ const ScheduleMap: React.FC<ScheduleMapProps> = ({ travelMode }) => {
                     mapRef.current = map;
                 }}
             >
-                {directions && <DirectionsRenderer directions={directions} />}
+                {places.map((place, index) => (
+                    <Marker
+                        key={index}
+                        position={place.location}
+                        label={(index + 1).toString()}
+                        title={place.name}
+                        onClick={() => setSelectedPlace(place)}
+                    />
+                ))}
+
+                {directionsSegments.map((directions, index) => (
+                    <DirectionsRenderer key={index} directions={directions} options={{ suppressMarkers: true }} />
+                ))}
+
+                {selectedPlace && (
+                    <InfoWindow position={selectedPlace.location} onCloseClick={() => setSelectedPlace(null)}>
+                        <div>
+                            <h4>{selectedPlace.name}</h4>
+                            <p>{selectedPlace.address}</p>
+                        </div>
+                    </InfoWindow>
+                )}
             </GoogleMap>
         </div>
     );

@@ -4,8 +4,11 @@
     margin-top: 20px;
     margin-bottom: 20px;
     padding: 0 20px;
-    width: 300px;
+    width: 800px;
     gap: 15px;
+    .routing {
+        width: 48%;
+    }
     button {
         width: 48%;
         height: 40px;
