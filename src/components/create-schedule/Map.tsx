@@ -4,16 +4,16 @@ import Styles from '@styles/componentStyles/mapStyles.module.scss';
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { GoogleMap, useJsApiLoader, Autocomplete } from '@react-google-maps/api';
 import { PlaceDetails } from '@/types/PlaceDetails';
-import { libraries } from '@/utils/googleMapConfig';
+import { getGoogleMapLibraries } from '@/utils/googleMapConfig';
 
-interface MapWithSearchProps {
+interface CreateScheduleMapProps {
     onPlaceSelect: (places: PlaceDetails[]) => void;
 }
 
-const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
+const CreateScheduleMap: React.FC<CreateScheduleMapProps> = ({ onPlaceSelect }) => {
     const { isLoaded, loadError } = useJsApiLoader({
         googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-        libraries,
+        libraries: getGoogleMapLibraries(),
         language: 'ja',
     });
 
@@ -59,14 +59,40 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
         initializeMarker();
     }, [clickedLocation]);
 
+    const smoothPanTo = (targetLatLng: google.maps.LatLng) => {
+        if (!mapRef.current) return;
+
+        const start = mapRef.current.getCenter()!;
+        const startLat = start.lat();
+        const startLng = start.lng();
+        const targetLat = targetLatLng.lat();
+        const targetLng = targetLatLng.lng();
+        const steps = 30;
+        let stepCount = 0;
+
+        const panInterval = setInterval(() => {
+            stepCount++;
+            const progress = stepCount / steps;
+            const lat = startLat + (targetLat - startLat) * progress;
+            const lng = startLng + (targetLng - startLng) * progress;
+
+            mapRef.current?.setCenter(new google.maps.LatLng(lat, lng));
+
+            if (stepCount === steps) {
+                clearInterval(panInterval);
+                mapRef.current?.setCenter(targetLatLng);
+            }
+        }, 10);
+    };
+
     const fetchPlaceDetailsFromLatLng = (latLng: google.maps.LatLng) => {
         setClickedLocation(latLng);
+
+        smoothPanTo(latLng);
 
         const geocoder = new google.maps.Geocoder();
         geocoder.geocode({ location: latLng }, (results, status) => {
             if (status === google.maps.GeocoderStatus.OK && results) {
-                console.log(results);
-
                 const filteredAndSortedResults = results
                     .slice(0, 5)
                     .filter(
@@ -117,15 +143,13 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
             }
         });
     };
-
     const handlePlaceSelect = () => {
         if (autoCompleteRef.current) {
             const place = autoCompleteRef.current.getPlace();
 
             if (place && place.geometry && place.geometry.location) {
                 const location = place.geometry.location;
-                mapRef.current?.panTo({ lat: location.lat(), lng: location.lng() });
-                mapRef.current?.setZoom(15);
+                smoothPanTo(location);
 
                 const placeDetails: PlaceDetails = {
                     name: place.name || '',
@@ -136,6 +160,7 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
                     location: { lat: location.lat(), lng: location.lng() },
                 };
 
+                setClickedLocation(location);
                 setSelectedPlaces([placeDetails]);
                 onPlaceSelect([placeDetails]);
             }
@@ -188,4 +213,4 @@ const MapWithSearch: React.FC<MapWithSearchProps> = ({ onPlaceSelect }) => {
     );
 };
 
-export default MapWithSearch;
+export default CreateScheduleMap;
