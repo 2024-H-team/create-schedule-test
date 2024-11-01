@@ -29,11 +29,11 @@ const ScheduleMap: React.FC<ScheduleMapProps> = ({ places, travelModes }) => {
                 const destination = i === places.length - 1 ? places[0].location : places[i + 1].location;
                 const travelMode = travelModes[i] || google.maps.TravelMode.WALKING;
 
-                console.log(
-                    `Creating route from ${places[i].name} to ${
-                        i === places.length - 1 ? places[0].name : places[i + 1].name
-                    } with mode ${travelMode}`,
-                );
+                // console.log(
+                //     `Creating route from ${places[i].name} to ${
+                //         i === places.length - 1 ? places[0].name : places[i + 1].name
+                //     } with mode ${travelMode}`,
+                // );
 
                 const result = await new Promise<google.maps.DirectionsResult | null>((resolve) => {
                     directionsService.route(
